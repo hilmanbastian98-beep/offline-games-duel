@@ -8,38 +8,104 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
+
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Extract Project
+
+      - name: Extract Android Project
         run: |
+          rm -rf project
+          mkdir project
+
           unzip -o Offline_games_duel_Android_Project.zip -d project
+
+          echo "=== PROJECT FILES ==="
+          find project -maxdepth 3 -type f | head -100
+
 
       - name: Find Android Project
         run: |
-          PROJECT_DIR=$(dirname "$(find project -name settings.gradle -type f | head -n 1)")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
-          echo "Project ditemukan: $PROJECT_DIR"
+          SETTINGS_FILE=$(find project \( -name settings.gradle -o -name settings.gradle.kts \) -type f | head -n 1)
 
-      - name: Download Gradle
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "ERROR: settings.gradle tidak ditemukan!"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+
+          echo "Android project ditemukan:"
+          echo "$PROJECT_DIR"
+
+
+      - name: Patch Missing ListenableFuture Dependency
         run: |
-          wget https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          APP_GRADLE="$PROJECT_DIR/app/build.gradle"
+
+          if [ ! -f "$APP_GRADLE" ]; then
+            echo "ERROR: app/build.gradle tidak ditemukan!"
+            exit 1
+          fi
+
+          if grep -q "com.google.guava:listenablefuture" "$APP_GRADLE"; then
+
+            echo "Dependency sudah ada"
+
+          else
+
+            echo "Menambahkan ListenableFuture..."
+
+            sed -i '/dependencies[[:space:]]*{/a\
+            implementation "com.google.guava:listenablefuture:1.0"
+            ' "$APP_GRADLE"
+
+          fi
+
+          echo "=== CHECK DEPENDENCY ==="
+
+          grep "listenablefuture" "$APP_GRADLE" || true
+
+
+      - name: Install Gradle 8.9
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip
+
           unzip -q gradle-8.9-bin.zip
+
           echo "$PWD/gradle-8.9/bin" >> $GITHUB_PATH
 
-      - name: Build APK
+          gradle --version
+
+
+      - name: Build Debug APK
         run: |
           cd "$PROJECT_DIR"
+
+          echo "=== START BUILD ==="
+
           gradle assembleDebug --no-daemon
 
-      - name: Upload APK
+
+      - name: Find APK
+        run: |
+          echo "=== APK FILES ==="
+
+          find "$PROJECT_DIR/app/build/outputs" -type f -name "*.apk"
+
+
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: Offline-Games-Duel-APK
           path: project/**/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
