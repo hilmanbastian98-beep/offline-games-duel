@@ -19,20 +19,29 @@ jobs:
 
       - name: Extract Project
         run: |
-          unzip Offline_games_duel_Android_Project.zip -d project
-          find project -name gradlew
+          unzip -o Offline_games_duel_Android_Project.zip -d project
+          echo "ISI PROJECT:"
+          find project -maxdepth 3 -type f | head -50
+
+      - name: Find Android Project
+        run: |
+          PROJECT_DIR=$(dirname "$(find project -name settings.gradle -type f | head -n 1)")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "Project ditemukan: $PROJECT_DIR"
+
+      - name: Download Gradle
+        run: |
+          wget https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q gradle-8.7-bin.zip
+          echo "$PWD/gradle-8.7/bin" >> $GITHUB_PATH
 
       - name: Build APK
         run: |
-          cd project
-          PROJECT_DIR=$(find . -name gradlew -type f | head -n 1 | xargs dirname)
-          echo "Project ditemukan di: $PROJECT_DIR"
           cd "$PROJECT_DIR"
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: project/**/app/build/outputs/apk/debug/app-debug.apk
+          path: project/**/app/build/outputs/apk/debug/*.apk
