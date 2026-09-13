@@ -20,8 +20,6 @@ jobs:
       - name: Extract Project
         run: |
           unzip -o Offline_games_duel_Android_Project.zip -d project
-          echo "ISI PROJECT:"
-          find project -maxdepth 3 -type f | head -50
 
       - name: Find Android Project
         run: |
